@@ -4,12 +4,18 @@
 
 .mx4-item {
     color: #ffffff;
-    font-size: 13pt;
-    font-weight: bold;
-    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
+    icon-size: 30px;
 }
 
 .mx4-selected {
+    color: #b5dcff;
+}
+
+.mx4-caption {
     color: #ffffff;
-    font-size: 14pt;
+    background-color: rgba(20, 20, 25, 0.94);
+    border-radius: 12px;
+    padding: 8px 14px;
+    font-size: 11pt;
+    font-weight: bold;
 }

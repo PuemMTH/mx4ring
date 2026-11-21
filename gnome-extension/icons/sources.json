@@ -1,0 +1,14 @@
+{
+  "claude.svg": {
+    "source": "https://raw.githubusercontent.com/simple-icons/simple-icons/develop/icons/claude.svg",
+    "sha256": "5119ef950a0d648b3fd62865791e73f07f32e18ddab84e4f21160f8c641c0f5f"
+  },
+  "openai.svg": {
+    "source": "https://cdn.jsdelivr.net/npm/simple-icons@14.0.0/icons/openai.svg",
+    "sha256": "5cfb761d9532e49cf26008a287df7a781647aa9cf6044b7c62f4f626fb74f850"
+  },
+  "vscode.png": {
+    "source": "https://code.visualstudio.com/favicon.ico",
+    "sha256": "a5baeffc7b0c3047893a69488960497204fc4ca4d7fd18000677a823ba5e1e90"
+  }
+}

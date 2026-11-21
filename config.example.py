@@ -9,6 +9,10 @@ Fill in MENU_BUTTON_CID after running:  python discover.py --watch
 stored here as ints.
 """
 
+import os
+_HERE = os.path.dirname(os.path.abspath(__file__))
+_FOLDER = f"/usr/bin/python3 {_HERE}/open_in_folder.py"
+
 # --- Device -----------------------------------------------------------------
 LOGITECH_VID = 0x046D
 
@@ -40,13 +44,26 @@ REMAPS = {
 # or a submenu (drills in)      ("Label", [ ("Child", "cmd"), ... ])
 MENUS = {
     "default": [
+        ("Claude Here", f"{_FOLDER} claude"),
+        ("Codex Here", f"{_FOLDER} codex"),
+        ("Terminal Here", f"{_FOLDER} terminal"),
+        ("VS Code Here", f"{_FOLDER} code"),
+        ("Copy Path", f"{_FOLDER} copy-path"),
         ("Files",      "nautilus || xdg-open ~"),
+        ("Sound", [
+            ("Volume +5%", "/usr/bin/wpctl set-volume -l 1.0 @DEFAULT_AUDIO_SINK@ 5%+"),
+            ("Volume -5%", "/usr/bin/wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%-"),
+            ("Mute / Unmute", "/usr/bin/wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle"),
+            ("Sound Settings", "gnome-control-center sound"),
+        ]),
+        ("Tools", [
         ("Screenshot", "gdbus call --session --dest org.freedesktop.portal.Desktop "
                        "--object-path /org/freedesktop/portal/desktop "
                        "--method org.freedesktop.portal.Screenshot.Screenshot "
                        "\"\" \"{'interactive': <true>}\""),
         ("Lock",       "loginctl lock-session"),
         ("Settings",   "gnome-control-center"),
+        ]),
     ],
 }
 

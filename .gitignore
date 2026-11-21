@@ -11,3 +11,6 @@ config.py.bak
 
 # Local working notes (not part of the project)
 mx4ring-generalize-prompt.md
+
+# Local backups made while customizing
+backups/

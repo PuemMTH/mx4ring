@@ -99,7 +99,7 @@ run_sudo udevadm trigger || true
 say "4/5  GNOME Shell extension"
 info "Copying extension to $EXT_DIR ..."
 mkdir -p "$EXT_DIR"
-cp "$REPO_DIR"/gnome-extension/* "$EXT_DIR/"
+cp -r "$REPO_DIR"/gnome-extension/* "$EXT_DIR/"
 if command -v gnome-extensions >/dev/null 2>&1; then
   if gnome-extensions enable "$EXT_UUID" 2>/dev/null; then
     info "Enabled $EXT_UUID."
@@ -121,14 +121,17 @@ if ask "Install + enable the systemd user service now? [y/N]" N; then
   cat > "$UNIT" <<EOF
 [Unit]
 Description=mx4ring daemon
+PartOf=graphical-session.target
+After=graphical-session.target
 
 [Service]
 Environment=PYTHONUNBUFFERED=1
 ExecStart=$VENV/bin/python $REPO_DIR/mx4d.py
-Restart=on-failure
+Restart=always
+RestartSec=5
 
 [Install]
-WantedBy=default.target
+WantedBy=graphical-session.target
 EOF
   systemctl --user daemon-reload
   if systemctl --user enable --now mx4ring.service; then

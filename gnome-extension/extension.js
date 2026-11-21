@@ -27,6 +27,28 @@ const R_OUT = 168;             // outer wheel radius (px)
 const R_MID = (R_IN + R_OUT) / 2;   // radius the labels sit at
 const PAD = 6;                 // breathing room for the outer stroke
 const HOVER_THROTTLE_US = 40000;
+const BRAND_ICONS = {
+    'Claude Here': 'claude.svg',
+    'Codex Here': 'openai.svg',
+    'VS Code Here': 'vscode.png',
+};
+const ACTION_ICONS = {
+    'Claude Here': 'starred-symbolic',
+    'Codex Here': 'applications-engineering-symbolic',
+    'Terminal Here': 'utilities-terminal-symbolic',
+    'VS Code Here': 'accessories-text-editor-symbolic',
+    'Copy Path': 'edit-copy-symbolic',
+    'Files': 'folder-symbolic',
+    'Sound': 'audio-volume-high-symbolic',
+    'Tools': 'applications-system-symbolic',
+    'Volume +5%': 'audio-volume-high-symbolic',
+    'Volume -5%': 'audio-volume-low-symbolic',
+    'Mute / Unmute': 'audio-volume-muted-symbolic',
+    'Sound Settings': 'preferences-system-symbolic',
+    'Screenshot': 'camera-photo-symbolic',
+    'Lock': 'system-lock-screen-symbolic',
+    'Settings': 'preferences-system-symbolic',
+};
 
 export default class Mx4RingExtension extends Extension {
     enable() {
@@ -83,6 +105,8 @@ export default class Mx4RingExtension extends Extension {
         if (this._overlay || !raw || raw.length === 0)
             return;
         this._stack = [];
+        const window = global.display.focus_window;
+        this._folderContext = [window?.get_gtk_window_object_path() ?? '', window?.get_title() ?? ''];
 
         const [px, py] = global.get_pointer();
         this._cx = px;
@@ -115,6 +139,7 @@ export default class Mx4RingExtension extends Extension {
             this._update(x, y);
             return Clutter.EVENT_STOP;
         });
+        this._overlay.connect('scroll-event', (_a, ev) => this._scrollVolume(ev));
         this._overlay.connect('button-press-event', () => {
             this._commit();
             return Clutter.EVENT_STOP;
@@ -125,6 +150,9 @@ export default class Mx4RingExtension extends Extension {
             return Clutter.EVENT_STOP;
         });
 
+        this._caption = new St.Label({text: '', style_class: 'mx4-caption'});
+        this._overlay.add_child(this._caption);
+        this._caption.connect('notify::allocation', () => this._positionCaption());
         this._buttons = [];
         this._setItems(this._normalize(raw));
 
@@ -134,6 +162,11 @@ export default class Mx4RingExtension extends Extension {
 
     // Display a level: rebuild the labels for `items`, reset selection, repaint.
     _setItems(items) {
+        this._soundMode = items.some(item => item.label === 'Volume +5%') &&
+            items.some(item => item.label === 'Volume -5%');
+        this._scrolledVolume = false;
+        this._scrollRemainder = 0;
+        this._volumeBusy = false;
         for (const chip of this._buttons)
             chip.destroy();
         this._items = items;
@@ -141,12 +174,20 @@ export default class Mx4RingExtension extends Extension {
         const n = items.length;
         this._buttons = items.map((item, i) => {
             const angle = -Math.PI / 2 + 2 * Math.PI * i / n;
-            const chip = new St.Label({text: item.label, style_class: 'mx4-item'});
+            const chip = new St.Icon({
+                gicon: BRAND_ICONS[item.label]
+                    ? new Gio.FileIcon({file: this.dir.get_child('icons').get_child(BRAND_ICONS[item.label])})
+                    : new Gio.ThemedIcon({name: ACTION_ICONS[item.label] ?? 'system-run-symbolic'}),
+                icon_size: 30,
+                accessible_name: item.label,
+                style_class: 'mx4-item',
+            });
             chip._cx = this._cx + R_MID * Math.cos(angle);
             chip._cy = this._cy + R_MID * Math.sin(angle);
             this._overlay.add_child(chip);
             return chip;
         });
+        this._setCaption(this._soundMode ? 'Sound · scroll to adjust' : 'Choose an action');
         this._recenter();
         if (this._area)
             this._area.queue_repaint();
@@ -207,6 +248,20 @@ export default class Mx4RingExtension extends Extension {
                 Math.round(chip._cx - chip.width / 2),
                 Math.round(chip._cy - chip.height / 2));
         }
+        this._positionCaption();
+    }
+
+    _setCaption(text) {
+        if (this._caption) {
+            this._caption.text = text;
+            this._positionCaption();
+        }
+    }
+
+    _positionCaption() {
+        if (this._caption)
+            this._caption.set_position(Math.round(this._cx - this._caption.width / 2),
+                Math.round(this._cy + R_OUT + 16));
     }
 
     _update(x, y) {
@@ -229,6 +284,7 @@ export default class Mx4RingExtension extends Extension {
                 this._selected = -1;
                 this._area.queue_repaint();
                 this._buttons.forEach(c => c.remove_style_class_name('mx4-selected'));
+                this._setCaption('Choose an action');
             }
             return;
         }
@@ -245,6 +301,7 @@ export default class Mx4RingExtension extends Extension {
         if (idx === this._selected)
             return;
         this._selected = idx;
+        this._setCaption(item.label + (this._soundMode ? ' · scroll to adjust' : ''));
         this._area.queue_repaint();
         this._buttons.forEach((c, i) => {
             if (i === idx)
@@ -262,15 +319,57 @@ export default class Mx4RingExtension extends Extension {
     _commit() {
         const idx = this._selected;
         const items = this._items;
+        const scrolledVolume = this._scrolledVolume;
         this._close();
-        if (idx >= 0 && idx < items.length && items[idx].command) {
+        if (!scrolledVolume && idx >= 0 && idx < items.length && items[idx].command) {
             this._buzz('select');
             try {
-                Gio.Subprocess.new(['sh', '-c', items[idx].command], Gio.SubprocessFlags.NONE);
+                const launcher = new Gio.SubprocessLauncher({flags: Gio.SubprocessFlags.NONE});
+                launcher.setenv('MX4_NAUTILUS_WINDOW', this._folderContext?.[0] ?? '', true);
+                launcher.setenv('MX4_NAUTILUS_TITLE', this._folderContext?.[1] ?? '', true);
+                launcher.spawnv(['sh', '-c', items[idx].command]);
             } catch (e) {
                 logError(e, 'mx4ring: failed to launch command');
             }
         }
+    }
+
+    _scrollVolume(event) {
+        // The Sound submenu is a volume dial; normal scrolling elsewhere is untouched.
+        if (!this._soundMode)
+            return Clutter.EVENT_STOP;
+        const direction = event.get_scroll_direction();
+        let delta = 0;
+        if (direction === Clutter.ScrollDirection.UP)
+            delta = -1;
+        else if (direction === Clutter.ScrollDirection.DOWN)
+            delta = 1;
+        else if (direction === Clutter.ScrollDirection.SMOOTH)
+            [, delta] = event.get_scroll_delta();
+        if (!Number.isFinite(delta) || delta === 0)
+            return Clutter.EVENT_STOP;
+        this._scrolledVolume = true; // Releasing the ring must not also mute/open settings.
+        this._scrollRemainder += delta;
+        if (Math.abs(this._scrollRemainder) < 1 || this._volumeBusy)
+            return Clutter.EVENT_STOP;
+        const up = this._scrollRemainder < 0;
+        this._scrollRemainder = 0;
+        this._volumeBusy = true;
+        try {
+            const process = Gio.Subprocess.new([
+                '/usr/bin/wpctl', 'set-volume', '-l', '1.0',
+                '@DEFAULT_AUDIO_SINK@', up ? '5%+' : '5%-',
+            ], Gio.SubprocessFlags.NONE);
+            process.wait_check_async(null, (proc, result) => {
+                this._volumeBusy = false;
+                try { proc.wait_check_finish(result); }
+                catch (e) { logError(e, 'mx4ring: volume adjustment failed'); }
+            });
+        } catch (e) {
+            this._volumeBusy = false;
+            logError(e, 'mx4ring: failed to adjust volume');
+        }
+        return Clutter.EVENT_STOP;
     }
 
     _close() {
@@ -283,6 +382,7 @@ export default class Mx4RingExtension extends Extension {
             this._overlay = null;
         }
         this._area = null;
+        this._caption = null;
         this._buttons = [];
         this._stack = [];
         this._selected = -1;

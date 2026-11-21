@@ -1,4 +1,44 @@
-# mx4ring
+# mx4ring (PuemMTH fork)
+
+Actions Ring สำหรับ **MX Master 4** บน Linux (GNOME Wayland) — fork จาก
+[koenrohrer/mx4ring](https://github.com/koenrohrer/mx4ring) (GPL-3.0) แล้วปรับเพิ่ม
+
+## สิ่งที่ fork นี้เพิ่ม
+- วงแหวนแสดงเป็น **ไอคอน** + caption ใต้วง (แทน label ตัวหนังสือ) — ไอคอนอยู่ `gnome-extension/icons/`
+- เมนู **Claude / Codex / Terminal / VS Code Here** และ **Copy Path** — เปิดในโฟลเดอร์ที่โฟกัสอยู่ใน Nautilus (`open_in_folder.py`)
+- เมนูย่อย **Sound**: เลื่อน scroll บนวงแหวนเพื่อปรับเสียงได้ทันที
+- systemd service ใช้ `Restart=always` — daemon จะปิดตัวเอง (exit 0) เมื่อเจอ `Input/output error`
+  ตอนเมาส์หลุด ซึ่ง `on-failure` จะไม่ restart ให้ ทำให้วงแหวนหายเงียบๆ
+
+## ติดตั้ง
+
+```bash
+git clone https://github.com/PuemMTH/mx4ring.git ~/.local/share/mx4ring
+cd ~/.local/share/mx4ring
+./setup.sh              # apt packages, venv, udev rule, GNOME extension, systemd service (ตอบ y)
+```
+
+จากนั้น
+1. ถอด–เสียบ Bolt receiver ใหม่ (ให้ udev ACL มีผล)
+2. Log out / log in (Wayland โหลด extension + สิทธิ์กลุ่ม `input` สำหรับ `/dev/uinput`)
+3. `config.py` ถูกสร้างจาก `config.example.py` ให้อัตโนมัติ — ปุ่มเมนูของ MX Master 4 คือ
+   `MENU_BUTTON_CID = 0x01A0` (ถ้าไม่ตรง รัน `.venv/bin/python discover.py --watch` แล้วกดปุ่ม haptic)
+4. `systemctl --user restart mx4ring` แล้วกดค้างปุ่ม haptic → เลื่อนไปที่ไอคอน → ปล่อย
+
+เมนู "… Here" ต้องมี: `ptyxis`, `zsh`, `xclip`, `notify-send`, VS Code แบบ snap (`/snap/bin/code`)
+และ CLI `claude` / `codex` — ถ้าเครื่องใช้ตัวอื่นแก้ path ใน `open_in_folder.py`
+
+## แก้ปัญหา
+- **วงแหวนไม่ขึ้น** → `systemctl --user status mx4ring` / `journalctl --user -u mx4ring -n 30`
+  ถ้าเจอ `re-divert failed after retries` ให้กดปุ่มซ้ำหรือ `systemctl --user restart mx4ring`
+- **กดแล้วเกิด 2 action** (เช่นเปิด Activities ด้วย) → มีโปรแกรมอื่นดักปุ่มเดียวกัน เช่น rule ใน Solaar
+  (`~/.config/solaar/rules.yaml`) ลบ rule แล้ว restart Solaar — ให้ mx4ring เป็นเจ้าของปุ่ม haptic คนเดียว
+
+---
+
+*README ต้นฉบับ (upstream) ด้านล่าง*
+
+## Upstream README
 
 A from-scratch, Solaar-free clone of the Logitech Options+ **Actions Ring** for
 the **MX Master 4** on Linux. It talks HID++ 2.0 directly to the mouse over the
@@ -12,7 +52,7 @@ wlroots/KDE.
 ## Quick start
 
 ```bash
-git clone https://github.com/koenrohrer/mx4ring.git && cd mx4ring
+git clone https://github.com/PuemMTH/mx4ring.git && cd mx4ring
 ./setup.sh        # system packages, venv, udev rule, GNOME extension
 ```
 
